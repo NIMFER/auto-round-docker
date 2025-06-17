@@ -1,0 +1,45 @@
+services:
+  autoround-quantizer:
+    # Builds the image from the local Dockerfile
+    build: .
+
+    # --- GPU Allocation ---
+    # Use the modern Container Device Interface (CDI) to reserve GPU resources.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: cdi
+              # 'all' uses all available GPUs. Can be specific, e.g., ['0', '1']
+              device_ids:
+                - 'nvidia.com/gpu=all'
+              capabilities:
+                - gpu
+
+    # --- Job Configuration ---
+    # Environment variables are passed to the run_advanced.py script.
+    environment:
+      # Model from Hugging Face or path to a local model folder.
+      MODEL_ID: "Qwen/Qwen3-0.6B"
+      # Quantization recipe. Options: auto-round, auto-round-best, auto-round-light
+      RECIPE: "auto-round"
+      # Target bits for quantization.
+      BITS: "4"
+      # Quantization group size.
+      GROUP_SIZE: "128"
+      # Output formats. Can be a comma-separated list: "auto_awq,auto_gptq,gguf"
+      FORMATS: "auto_awq"
+      # Set to "true" to enable low VRAM mode. Essential for large models.
+      LOW_MEM: "true"
+      # Increases download timeout for large files on unstable connections.
+      HF_HUB_ETAG_TIMEOUT: "120"
+
+    # --- Persistent Storage ---
+    volumes:
+      # Maps the container's output directory to a local folder.
+      - ./autoround_output:/app/output
+      # Persists the Hugging Face model cache to the host to avoid re-downloads.
+      - ./hf_cache:/root/.cache/huggingface
+
+    # Increases shared memory size. Critical for preventing crashes with large models.
+    shm_size: 16gb
