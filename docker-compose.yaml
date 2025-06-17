@@ -33,6 +33,8 @@ services:
       LOW_MEM: "true"
       # Increases download timeout for large files on unstable connections.
       HF_HUB_ETAG_TIMEOUT: "120"
+      # Quantization method. Options: auto-round, quanto
+      QUANTIZATION_METHOD: "auto-round"
 
       # --- Upload Control ---
       # Set to "true" to enable compression and/or uploading after quantization.

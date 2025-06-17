@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y git build-essential && \
     "datasets==3.6.0" \
     "trl==0.18.1" \
     "auto-round[all]" \
-    "accelerate" && \
+    "accelerate" \
+    "quanto" && \
     rm -rf /var/lib/apt/lists/*
 
 COPY run_advanced.py .

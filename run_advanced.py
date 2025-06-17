@@ -2,6 +2,7 @@ import os
 import logging
 import torch
 import tarfile
+import quanto
 import requests
 import mimetypes
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -9,6 +10,7 @@ from auto_round import AutoRound
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
+QUANTIZATION_METHOD = os.getenv("QUANTIZATION_METHOD", "auto-round")
 MODEL_ID = os.getenv("MODEL_ID")
 if not MODEL_ID:
     raise ValueError("FATAL: Environment variable MODEL_ID is not set.")
@@ -72,12 +74,42 @@ def main():
         )
         tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
         logging.info("Model and tokenizer loaded.")
-        autoround = AutoRound(model, tokenizer, bits=BITS, group_size=GROUP_SIZE)
+
         model_name = MODEL_ID.split('/')[-1]
-        output_path = os.path.join(OUTPUT_DIR, f"{model_name}-{BITS}bit")
-        logging.info(f"Starting quantization and saving to {output_path}...")
-        autoround.quantize_and_save(output_path, format=FORMATS)
-        logging.info("--- Quantization and saving complete. ---")
+
+        if QUANTIZATION_METHOD == "quanto":
+            logging.info(f"--- Using quanto for quantization ---")
+            output_path = os.path.join(OUTPUT_DIR, f"{model_name}-{BITS}bit-quanto")
+            logging.info(f"--- Using quanto for quantization ---")
+            # BITS environment variable is used for auto-round, quanto has fixed int4 for now
+            # For naming consistency, we can include a representation of bits in the path if desired,
+            # or simplify if BITS is not directly applicable to how quanto is used here.
+            # Using a generic name for now, indicating quanto and its fixed quantization.
+            output_path = os.path.join(OUTPUT_DIR, f"{model_name}-int4-quanto")
+            logging.info(f"Quantizing model with quanto to int4 weights (activations not quantized)...")
+
+            # Ensure model is on the correct device if quanto requires it (e.g., CPU)
+            # model.to("cpu") # Uncomment and adjust if quanto has specific device requirements
+
+            # Quantize the model using quanto.quantize_model
+            # Using int4 for weights and None for activations as specified
+            quanto.quantize_model(model, weights=quanto.int4, activations=None)
+
+            logging.info(f"Saving quantized model and tokenizer to {output_path}...")
+            # Create the output directory if it doesn't exist
+            os.makedirs(output_path, exist_ok=True)
+            model.save_pretrained(output_path)
+            tokenizer.save_pretrained(output_path)
+            logging.info("--- Quanto quantization and saving complete. ---")
+        elif QUANTIZATION_METHOD == "auto-round":
+            logging.info(f"--- Using auto-round for quantization ---")
+            autoround = AutoRound(model, tokenizer, bits=BITS, group_size=GROUP_SIZE)
+            output_path = os.path.join(OUTPUT_DIR, f"{model_name}-{BITS}bit") # auto-round uses BITS from env
+            logging.info(f"Starting quantization and saving to {output_path}...")
+            autoround.quantize_and_save(output_path, format=FORMATS)
+            logging.info("--- Auto-round quantization and saving complete. ---")
+        else:
+            raise ValueError(f"Unsupported QUANTIZATION_METHOD: {QUANTIZATION_METHOD}")
 
         if UPLOAD_AFTER_DONE:
             archive_path = f"{output_path}.tar.gz"
