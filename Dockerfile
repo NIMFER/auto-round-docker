@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y git build-essential && \
     "trl==0.18.1" \
     "auto-round[all]" \
     "accelerate" \
-    "quanto" && \
+    "llmcompressor" \
+    "vllm" && \
     rm -rf /var/lib/apt/lists/*
 
 COPY run_advanced.py .

@@ -2,9 +2,10 @@ import os
 import logging
 import torch
 import tarfile
-import quanto
 import requests
 import mimetypes
+from llmcompressor import oneshot
+from llmcompressor.modifiers import GPTQModifier
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from auto_round import AutoRound
 
@@ -77,30 +78,36 @@ def main():
 
         model_name = MODEL_ID.split('/')[-1]
 
-        if QUANTIZATION_METHOD == "quanto":
-            logging.info(f"--- Using quanto for quantization ---")
-            output_path = os.path.join(OUTPUT_DIR, f"{model_name}-{BITS}bit-quanto")
-            logging.info(f"--- Using quanto for quantization ---")
-            # BITS environment variable is used for auto-round, quanto has fixed int4 for now
-            # For naming consistency, we can include a representation of bits in the path if desired,
-            # or simplify if BITS is not directly applicable to how quanto is used here.
-            # Using a generic name for now, indicating quanto and its fixed quantization.
-            output_path = os.path.join(OUTPUT_DIR, f"{model_name}-int4-quanto")
-            logging.info(f"Quantizing model with quanto to int4 weights (activations not quantized)...")
+        if QUANTIZATION_METHOD == "llm-compressor":
+            logging.info(f"--- Using llm-compressor for quantization ---")
+            # Define the output path based on the new library and scheme
+            output_path = os.path.join(OUTPUT_DIR, f"{model_name}-W4A16-llmcompressor")
+            logging.info(f"Quantizing model with llm-compressor (GPTQ W4A16)...")
 
-            # Ensure model is on the correct device if quanto requires it (e.g., CPU)
-            # model.to("cpu") # Uncomment and adjust if quanto has specific device requirements
+            # Define the llm-compressor recipe for W4A16 GPTQ
+            # Targeting all Linear layers, common practice is to ignore lm_head
+            recipe = [
+                GPTQModifier(scheme="W4A16", targets="Linear", ignore=["lm_head"]),
+            ]
 
-            # Quantize the model using quanto.quantize_model
-            # Using int4 for weights and None for activations as specified
-            quanto.quantize_model(model, weights=quanto.int4, activations=None)
+            # Apply quantization using llmcompressor.oneshot
+            # Using "open_platypus" as a default calibration dataset
+            # Using common defaults for num_calibration_samples and max_seq_length
+            oneshot(
+                model=model,  # Pass the loaded model object
+                dataset="open_platypus",
+                recipe=recipe,
+                output_dir=output_path,
+                max_seq_length=2048,
+                num_calibration_samples=512,
+            )
 
-            logging.info(f"Saving quantized model and tokenizer to {output_path}...")
-            # Create the output directory if it doesn't exist
+            logging.info(f"Saving tokenizer to {output_path}...")
+            # llmcompressor.oneshot handles model saving. We still need to save the tokenizer.
+            # Ensure the output directory exists (oneshot might create it, but good to be sure)
             os.makedirs(output_path, exist_ok=True)
-            model.save_pretrained(output_path)
             tokenizer.save_pretrained(output_path)
-            logging.info("--- Quanto quantization and saving complete. ---")
+            logging.info("--- llm-compressor quantization and saving complete. ---")
         elif QUANTIZATION_METHOD == "auto-round":
             logging.info(f"--- Using auto-round for quantization ---")
             autoround = AutoRound(model, tokenizer, bits=BITS, group_size=GROUP_SIZE)
