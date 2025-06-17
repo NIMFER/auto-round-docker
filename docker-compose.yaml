@@ -27,12 +27,26 @@ services:
       BITS: "4"
       # Quantization group size.
       GROUP_SIZE: "128"
-      # Output formats. Can be a comma-separated list: "auto_awq,auto_gptq,gguf"
+      # Output formats. Can be a comma-separated list: "auto_awq,auto_gptq,auto_round"
       FORMATS: "auto_awq"
       # Set to "true" to enable low VRAM mode. Essential for large models.
       LOW_MEM: "true"
       # Increases download timeout for large files on unstable connections.
       HF_HUB_ETAG_TIMEOUT: "120"
+
+      # --- Upload Control ---
+      # Set to "true" to enable compression and/or uploading after quantization.
+      UPLOAD_AFTER_DONE: "false"
+      # Determines the post-quantization action.
+      # "zipline": Compresses, uploads to Zipline, then deletes the local archive.
+      # "local": Compresses and keeps the local archive.
+      UPLOAD_TYPE: "local"
+
+      # --- Credentials (only needed if uploading) ---
+      # Your Zipline instance domain (e.g., files.example.com).
+      ZIPLINE_DOMAIN: "your-files.getsilly.org"
+      # Your Zipline authorization token.
+      ZIPLINE_TOKEN: ""
 
     # --- Persistent Storage ---
     volumes:
